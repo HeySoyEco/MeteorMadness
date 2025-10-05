@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Meteor Madness</title>
+<style>
+    :root {
+    --bg: radial-gradient(circle at top, #0b1b3a, #000);
+    --glass: rgba(255, 255, 255, 0.08);
+    --accent: #ff6600d8;
+    --accentHover: #ffa733;
+    }
+    body {
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: white;
+    margin: 0;
+    }
+    header {
+    position: relative;
+    height: 100px;
+    background-color: rgba(255, 255, 255, 0.1);
+    }
+    .logo-container {
+    position: absolute;
+    top: 10px;
+    left: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    }
+    .logo { width: 50px; height: 50px; object-fit: contain; }
+    .title { font-size: 1.5rem; margin: 0; }
+    main { padding: 2rem; text-align: center; }
+    button {
+    background-color: var(--accent);
+    border: none;
+    padding: 10px 20px;
+    color: white;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    }
+    button:hover { background-color: var(--accentHover); }
+    footer {
+    text-align: center;
+    padding: 1rem;
+    background-color: rgba(255, 255, 255, 0.05);
+    }
+    /* Resultados */
+    #results {
+    max-width: 1000px;
+    margin: 2rem auto 0;
+    text-align: left;
+    }
+    .card {
+    background: var(--glass);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin-bottom: .8rem;
+    }
+    .row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr .8fr;
+    gap: .8rem;
+    align-items: center;
+    }
+    .row.header {
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    padding-bottom: .5rem;
+    margin-bottom: .6rem;
+    }
+    .badge {
+    display: inline-block;
+    padding: .2rem .5rem;
+    border-radius: 999px;
+    font-size: .8rem;
+    background: #ffffff1a;
+    border: 1px solid #ffffff33;
+    }
+    .danger { background:#b71c1caa; border-color:#ff8a80aa; }
+    .ok { background:#1b5e20aa; border-color:#a5d6a7aa; }
+    .muted { opacity: .8; font-size: .95rem; }
+</style>
+</head>
+<body>
+<header>
+    <div class="logo-container">
+    <!-- Cambia la ruta por tu logo de asteroide -->
+    <img src="asteroide.png" alt="Asteroide" class="logo">
+    <h1 class="title">ReCap Simulation</h1>
+    </div>
+</header>
+
+<main>
+    <h2>Explora el poder de un impacto</h2>
+    <p>Ajusta parámetros del asteroide y observa los efectos potenciales.</p>
+
+    <!-- Botón que dispara la carga -->
+    <button id="load-btn">Mira los asteroides</button>
+
+    <!-- Contenedor donde se pintan los resultados -->
+    <section id="results"></section>
+</main>
+
+<footer>
+    <p>Proyecto NASA Space Apps Challenge 2025 - Capcom vs El Recodo</p>
+</footer>
+
+<script>
+    // 1) CONFIGURA AQUÍ TU API
+    // Ejemplo: NASA Near Earth Objects (NO requiere cuenta para pruebas con DEMO_KEY).
+    const API_URL = "https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=Fh37Ayni8aK9FXjwlpPm06ym4UPLeMOcwaMAjZkA";
+
+    // 2) ELEMENTOS DEL DOM
+    const btn = document.getElementById('load-btn');
+    const results = document.getElementById('results');
+
+    // 3) UTILIDADES DE RENDER
+    function setLoading(isLoading) {
+    btn.disabled = isLoading;
+    btn.textContent = isLoading ? "Cargando asteroides... 🚀" : "Mira los asteroides";
+    }
+
+    function renderHeader() {
+    const header = document.createElement('div');
+    header.className = 'card';
+    header.innerHTML = `
+        <div class="row header">
+        <div>Nombre</div>
+        <div>Diámetro (m) aprox.</div>
+        <div>Magnitud H</div>
+        <div>Peligroso</div>
+        </div>
+    `;
+    results.appendChild(header);
+    }
+
+    function renderItem({ name, diameterMin, diameterMax, magH, hazardous }) {
+    const row = document.createElement('div');
+    row.className = 'card';
+    row.innerHTML = `
+        <div class="row">
+        <div><strong>${name}</strong></div>
+        <div>${(diameterMin ?? '?').toLocaleString()} – ${(diameterMax ?? '?').toLocaleString()}</div>
+        <div>${magH ?? '—'}</div>
+        <div>
+            <span class="badge ${hazardous ? 'danger' : 'ok'}">
+            ${hazardous ? 'Sí' : 'No'}
+            </span>
+        </div>
+        </div>
+    `;
+    results.appendChild(row);
+    }
+
+    function showMessage(text) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = <div class="muted">${text}</div>;
+    results.appendChild(card);
+    }
+
+    // 4) MAPEO/TRANSFORMACIÓN DEL JSON (ajústalo si cambias de API)
+    function mapNeoToItem(neo) {
+    const est = neo.estimated_diameter?.meters || {};
+    return {
+        name: neo.name,
+        diameterMin: est.estimated_diameter_min ? Math.round(est.estimated_diameter_min) : null,
+        diameterMax: est.estimated_diameter_max ? Math.round(est.estimated_diameter_max) : null,
+        magH: neo.absolute_magnitude_h,
+        hazardous: Boolean(neo.is_potentially_hazardous_asteroid)
+    };
+    }
+
+    // 5) FETCH + RENDER
+    async function loadData() {
+    results.innerHTML = '';
+    renderHeader();
+    setLoading(true);
+    try {
+        const resp = await fetch(API_URL);
+        if (!resp.ok) {
+        throw new Error(HTTP ${resp.status} - ${resp.statusText});
+        }
+        const data = await resp.json();
+
+        // La NASA devuelve { near_earth_objects: [...] }
+        const list = Array.isArray(data.near_earth_objects) ? data.near_earth_objects : [];
+        if (list.length === 0) {
+        showMessage('No se encontraron objetos cercanos a la Tierra.');
+        return;
+        }
+
+        // Muestra los primeros 12
+        list.slice(0, 12).map(mapNeoToItem).forEach(renderItem);
+
+        showMessage(Mostrando ${Math.min(12, list.length)} de ${list.length} objetos.);
+    } catch (err) {
+        console.error(err);
+        showMessage('Ocurrió un error al cargar los datos. Revisa la consola (F12) y la URL de la API.');
+    } finally {
+        setLoading(false);
+    }
+    }
+
+    // 6) EVENTO DEL BOTÓN
+    btn.addEventListener('click', loadData);
+</script>
+</body>
+</html>

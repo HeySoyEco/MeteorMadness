@@ -7,7 +7,7 @@
   <style>
     :root {
       --bg: radial-gradient(circle at top, #0b1b3a, #000);
-      --glass: rgba(255, 255, 255, .01);
+      --glass: rgba(255, 255, 255, 0.08);
       --accent: #ff6600d8;
       --accentHover: #ffa733;
     }
@@ -20,7 +20,7 @@
     header {
       position: relative;
       height: 100px;
-      background: linear-gradient(to right, white 0%, #665e5e 100%);
+      background-color: linear-gradient(to right, white 0%, #665e5e 100%);
     }
     .logo-container {
       position: absolute;
@@ -31,9 +31,23 @@
       gap: 10px;
     }
     .logo { width: 100px; height: 50px; object-fit: contain; }
-    .title { font-size: 2rem; margin: 0; }
+    .title { font-size: 1.5rem; margin: 0; }
     main { padding: 2rem; text-align: center; }
-    button {
+    /* Estilos del botón principal de carga y el botón/tarjeta de asteroide */
+     .card-button {
+      background-color: var(--accent);
+      border: none;
+      padding: 10px 20px;
+      color: white;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%; /* Asegura que el botón de tarjeta ocupe todo el ancho de su contenedor */
+      text-align: left; /* Alinea el texto a la izquierda para las tarjetas */
+      transition: background-color 0.2s;
+    }
+    .card-button:hover { background-color: var(--accentHover); }
+    .load-button {
       background-color: var(--accent);
       border: none;
       padding: 10px 20px;
@@ -42,25 +56,26 @@
       border-radius: 5px;
       cursor: pointer;
     }
-    button:hover { background-color: var(--accentHover); }
-    footer {
-      text-align: center;
-      padding: 1rem;
-      background-color: rgba(255, 255, 255, 0.05);
-    }
-    /* Resultados */
-    #results {
-      max-width: 1000px;
-      margin: 2rem auto 0;
-      text-align: left;
-    }
+    .load-button:hover { background-color: var(--accentHover); }
+    /* Estilo específico para las tarjetas/botones de asteroide */
     .card {
       background: var(--glass);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 10px;
-      padding: 1rem 1.2rem;
+      padding: 0; /* Quitamos padding del card para que lo tenga el botón interno */
       margin-bottom: .8rem;
+      overflow: hidden; /* Oculta el overflow del border-radius */
     }
+    .card-button {
+      padding: 1rem 1.2rem;
+      background: none; /* Quitamos el background del accent para usar el del card */
+      color: white;
+      /* Aplicar hover solo al contenido interno de la tarjeta */
+    }
+    .card-button:hover {
+      background-color: rgba(255, 255, 255, 0.15); /* Un color para el hover de la tarjeta */
+    }
+    /* Estilos de la cabecera */
     .row {
       display: grid;
       grid-template-columns: 1.2fr 1fr 1fr .8fr;
@@ -69,10 +84,11 @@
     }
     .row.header {
       font-weight: bold;
-      border-bottom: 1px solid rgba(255,255,255,0.15);
-      padding-bottom: .5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding: .5rem 1.2rem; /* Agregamos padding para que coincida con el contenido */
       margin-bottom: .6rem;
     }
+    /* Estilos adicionales */
     .badge {
       display: inline-block;
       padding: .2rem .5rem;
@@ -84,25 +100,59 @@
     .danger { background:#b71c1caa; border-color:#ff8a80aa; }
     .ok { background:#1b5e20aa; border-color:#a5d6a7aa; }
     .muted { opacity: .8; font-size: .95rem; }
+    
+    /* Nueva sección de simulación */
+    #simulation-area {
+      max-width: 1000px;
+      margin: 3rem auto;
+      padding-top: 2rem;
+      border-top: 1px dashed rgba(255, 255, 255, 0.2);
+      text-align: left;
+    }
+    #map-placeholder {
+      min-height: 300px;
+      background: var(--glass);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      color: #aaa;
+      margin-top: 1rem;
+    }
+    #map-placeholder h4 { margin-top: 0; color: white; }
+    #map-content {
+      background: #0a1a2a;
+      border-radius: 8px;
+      padding: 20px;
+      width: 100%;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="logo-container">
-      <!-- Cambia la ruta por tu logo de asteroide -->
-      <img src="asteroide.png" alt="Asteroide.png">
+      <img src="asteroide.png" alt="Asteroide" class="logo">
+      <h1 class="title">ReCap Simulation</h1>
     </div>
   </header>
 
   <main>
     <h2>Explora el poder de un impacto</h2>
-    <p>Ajusta parámetros del asteroide y observa los efectos potenciales.</p>
+    <p>Ajusta parámetros del asteroide y observa los efectos potenciales. **Haz clic en un asteroide para simular su impacto.**</p>
 
-    <!-- Botón que dispara la carga -->
-    <button id="load-btn">Mira los asteroides</button>
+    <button id="load-btn" class="load-button">Mira los asteroides</button>
 
-    <!-- Contenedor donde se pintan los resultados -->
     <section id="results"></section>
+    
+    <section id="simulation-area">
+      <h3>Simulación de Impacto</h3>
+      <div id="map-placeholder">Selecciona un asteroide de la lista para ver la simulación de impacto.</div>
+    </section>
+
   </main>
 
   <footer>
@@ -111,12 +161,16 @@
 
   <script>
     // 1) CONFIGURA AQUÍ TU API
-    // Ejemplo: NASA Near Earth Objects (NO requiere cuenta para pruebas con DEMO_KEY).
+    // Se usa una key de demostración que puede expirar o tener límites de uso.
     const API_URL = "https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=Fh37Ayni8aK9FXjwlpPm06ym4UPLeMOcwaMAjZkA";
 
     // 2) ELEMENTOS DEL DOM
     const btn = document.getElementById('load-btn');
     const results = document.getElementById('results');
+    const mapPlaceholder = document.getElementById('map-placeholder'); // Nuevo elemento para la simulación
+
+    // Almacena la lista completa de objetos (opcional, pero útil si se requiere el objeto completo)
+    let asteroidList = [];
 
     // 3) UTILIDADES DE RENDER
     function setLoading(isLoading) {
@@ -138,46 +192,108 @@
       results.appendChild(header);
     }
 
-    function renderItem({ name, diameterMin, diameterMax, magH, hazardous }) {
-      const row = document.createElement('div');
-      row.className = 'card';
-      row.innerHTML = `
+    /**
+     * Convierte los datos mapeados en un botón de tarjeta interactivo.
+     * @param {object} itemData - Datos del asteroide transformados.
+     */
+    function renderItem(itemData) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      
+      const button = document.createElement('button');
+      button.className = 'card-button';
+      // Asigna el evento 'click' para la simulación
+      button.onclick = () => simulateImpact(itemData);
+
+      button.innerHTML = `
         <div class="row">
-          <div><strong>${name}</strong></div>
-          <div>${(diameterMin ?? '?').toLocaleString()} – ${(diameterMax ?? '?').toLocaleString()}</div>
-          <div>${magH ?? '—'}</div>
+          <div><strong>${itemData.name}</strong></div>
+          <div>${(itemData.diameterMin ?? '?').toLocaleString()} – ${(itemData.diameterMax ?? '?').toLocaleString()}</div>
+          <div>${itemData.magH ?? '—'}</div>
           <div>
-            <span class="badge ${hazardous ? 'danger' : 'ok'}">
-              ${hazardous ? 'Sí' : 'No'}
+            <span class="badge ${itemData.hazardous ? 'danger' : 'ok'}">
+              ${itemData.hazardous ? 'Sí' : 'No'}
             </span>
           </div>
         </div>
       `;
-      results.appendChild(row);
+      
+      card.appendChild(button);
+      results.appendChild(card);
     }
 
     function showMessage(text) {
       const card = document.createElement('div');
       card.className = 'card';
-      card.innerHTML = `<div class="muted">${text}</div>`;
+      card.innerHTML = `<div class="muted" style="padding: 1rem 1.2rem;">${text}</div>`;
       results.appendChild(card);
     }
 
-    // 4) MAPEO/TRANSFORMACIÓN DEL JSON (ajústalo si cambias de API)
+    // 4) MAPEO/TRANSFORMACIÓN DEL JSON
     function mapNeoToItem(neo) {
       const est = neo.estimated_diameter?.meters || {};
+      const diameterAvg = (est.estimated_diameter_min && est.estimated_diameter_max) 
+                          ? Math.round((est.estimated_diameter_min + est.estimated_diameter_max) / 2)
+                          : null;
       return {
+        id: neo.id, 
         name: neo.name,
         diameterMin: est.estimated_diameter_min ? Math.round(est.estimated_diameter_min) : null,
         diameterMax: est.estimated_diameter_max ? Math.round(est.estimated_diameter_max) : null,
+        diameterAvg: diameterAvg, // Promedio para usar en la simulación
         magH: neo.absolute_magnitude_h,
-        hazardous: Boolean(neo.is_potentially_hazardous_asteroid)
+        hazardous: Boolean(neo.is_potentially_hazardous_asteroid),
       };
     }
 
-    // 5) FETCH + RENDER
+    // 5) FUNCIÓN DE SIMULACIÓN Y MAPA (Placeholder para la interactividad)
+    function simulateImpact(asteroid) {
+      // 1. Limpiar el contenido anterior
+      mapPlaceholder.innerHTML = '';
+      
+      // 2. Título de la simulación
+      const title = document.createElement('h4');
+      title.textContent = `Simulación de Impacto para: ${asteroid.name}`;
+      mapPlaceholder.appendChild(title);
+      
+      // 3. Placeholder para el Mapa Interactivo y Controles
+      const mapContent = document.createElement('div');
+      mapContent.id = 'map-content';
+      
+      const avgDiameter = asteroid.diameterAvg ? `${asteroid.diameterAvg.toLocaleString()} metros` : 'Desconocido';
+
+      mapContent.innerHTML = `
+        <p style="color: #6699ff; font-weight: bold;">[Espacio para el Mapa Interactivo 🗺️]</p>
+        <p>Aquí se integraría una librería como **Leaflet** o **Google Maps** para:
+        <ul>
+            <li>Visualizar un punto de impacto simulado.</li>
+            <li>Dibujar los radios de las zonas de efecto (onda de choque, terremoto, etc.).</li>
+        </ul>
+        </p>
+        <p>Datos Clave para la Simulación: <strong>Diámetro Promedio: ${avgDiameter}</strong>. Este dato influye directamente en la magnitud de los efectos.</p>
+        
+        <p>---</p>
+        
+        <p style="color: var(--accentHover); font-weight: bold;">[Controles de Interacción ⚙️]</p>
+        <p>Aquí irían los controles para que el usuario pueda interactuar con la simulación:</p>
+        <ul>
+            <li>**Velocidad de Impacto:** Slider para ajustar la velocidad.</li>
+            <li>**Ángulo de Entrada:** Campo para definir el ángulo.</li>
+            <li>**Tipo de Terreno:** Dropdown (Tierra, Agua, Roca) para calcular efectos.</li>
+            <li>**Botón Recalcular:** Para actualizar el mapa y los efectos al cambiar los parámetros.</li>
+        </ul>
+        <p>Actualmente, se requiere una herramienta externa (como la <a href="https://impact.ese.ic.ac.uk/ImpactEarth/ImpactEffects/" target="_blank" style="color: var(--accentHover);">Calculadora Impact Earth</a>) para la lógica de simulación avanzada.</p>
+      `;
+      mapPlaceholder.appendChild(mapContent);
+      
+      // Desplazarse al área de simulación
+      document.getElementById('simulation-area').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // 6) FETCH + RENDER
     async function loadData() {
       results.innerHTML = '';
+      mapPlaceholder.innerHTML = 'Selecciona un asteroide de la lista para ver la simulación de impacto.';
       renderHeader();
       setLoading(true);
       try {
@@ -194,9 +310,10 @@
           return;
         }
 
-        // Muestra los primeros 20 (Línea modificada)
+        // Muestra los primeros 20
         const limit = 20; 
-        list.slice(0, limit).map(mapNeoToItem).forEach(renderItem); 
+        asteroidList = list.slice(0, limit).map(mapNeoToItem); // Almacena y mapea
+        asteroidList.forEach(renderItem); 
 
         showMessage(`Mostrando ${Math.min(limit, list.length)} de ${list.length} objetos.`);
       } catch (err) {
@@ -207,24 +324,8 @@
       }
     }
 
-    // 6) EVENTO DEL BOTÓN
+    // 7) EVENTO DEL BOTÓN
     btn.addEventListener('click', loadData);
   </script>
 </body>
 </html>
-
-</html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-

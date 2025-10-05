@@ -37,19 +37,6 @@
     .title { font-size: 1.5rem; margin: 0; }
     main { padding: 2rem; text-align: center; }
     /* Estilos del botón principal de carga y el botón/tarjeta de asteroide */
-    .card-button {
-      background-color: var(--accent);
-      border: none;
-      padding: 10px 20px;
-      color: white;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      width: 100%; /* Asegura que el botón de tarjeta ocupe todo el ancho de su contenedor */
-      text-align: left; /* Alinea el texto a la izquierda para las tarjetas */
-      transition: background-color 0.2s;
-    }
-    .card-button:hover { background-color: var(--accentHover); }
     .load-button {
       background-color: var(--accent);
       border: none;
@@ -60,6 +47,19 @@
       cursor: pointer;
     }
     .load-button:hover { background-color: var(--accentHover); }
+    .card-button {
+      padding: 1rem 1.2rem;
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: background-color 0.2s;
+    }
+    .card-button:hover {
+      background-color: rgba(255, 255, 255, 0.15);
+    }
     /* Estilo específico para las tarjetas/botones de asteroide */
     .card {
       background: var(--glass);
@@ -69,7 +69,6 @@
       margin-bottom: .8rem;
       overflow: hidden;
     }
-
     /* Estilos de la cabecera */
     .row {
       display: grid;
@@ -109,10 +108,6 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 10px;
       padding: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
       color: #aaa;
       margin-top: 1rem;
     }
@@ -120,20 +115,28 @@
     
     /* Estilo del contenedor del mapa Leaflet */
     #impact-map {
-      min-height: 400px; /* Altura necesaria para que Leaflet funcione */
+      min-height: 400px;
       margin-top: 15px;
       border-radius: 8px;
       width: 100%;
-      z-index: 0; /* Asegura que los controles del mapa sean visibles */
+      z-index: 0;
     }
 
     #controls-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
       margin-top: 15px;
       padding: 15px;
       border: 1px dashed #ffffff33;
       border-radius: 8px;
-      width: 100%;
     }
+    .control-group { margin-bottom: 10px; }
+    .control-group label { display: block; margin-bottom: 5px; font-weight: bold; color: white; font-size: 0.9em; }
+    .control-group input[type="range"] { width: 80%; }
+    .results-box { grid-column: 1 / -1; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    .results-box p { margin: 5px 0; font-size: 1.1em; color: var(--accentHover); }
+    .results-box span { color: white; font-weight: normal; }
   </style>
 </head>
 <body>
@@ -165,13 +168,52 @@
 
   <script>
     const API_URL = "https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=Fh37Ayni8aK9FXjwlpPm06ym4UPLeMOcwaMAjZkA";
+    
+    // --- Valores Físicos Constantes ---
+    const DENSITY_ROCK = 3000; // kg/m^3 (similar al default del Impact Earth calculator)
+    const DENSITY_IRON = 8000; // kg/m^3
+    const DENSITY_WATER = 1000; // kg/m^3
+    const JOULES_PER_MEGATON = 4.184e15; // 1 Mt TNT en Joules
 
     const btn = document.getElementById('load-btn');
     const results = document.getElementById('results');
     const mapPlaceholder = document.getElementById('map-placeholder');
 
-    let asteroidList = [];
-    let impactMap = null; // Instancia global de Leaflet Map
+    let impactMap = null; 
+
+    // --- FÓRMULAS SIMPLIFICADAS DE CÁLCULO DE IMPACTO ---
+    
+    /**
+     * Calcula la energía cinética y su equivalente en megatones.
+     */
+    function calculateKineticEnergy(diameterMeters, densityKgPerCubicMeter, velocityMps) {
+        const radiusMeters = diameterMeters / 2;
+        const volumeCubicMeters = (4/3) * Math.PI * Math.pow(radiusMeters, 3);
+        const massKg = densityKgPerCubicMeter * volumeCubicMeters;
+        const kineticEnergyJoules = 0.5 * massKg * Math.pow(velocityMps, 2);
+        const energyMegatons = kineticEnergyJoules / JOULES_PER_MEGATON;
+        return { kineticEnergyJoules, energyMegatons };
+    }
+
+    /**
+     * Calcula el radio del cráter transitorio (simplificado) basado en la energía.
+     * Esta es una fórmula de escala empírica muy simplificada (no es la de Impact Earth).
+     * D_crater(m) ≈ 1500 * E_k(Mt)^0.29 * sin(theta)^(2/3)
+     */
+    function calculateCraterRadius(energyMegatons, angleDegrees) {
+        // Diámetro base del cráter transitorio en METROS.
+        const baseCraterDiameterMeters = 1500 * Math.pow(energyMegatons, 0.29);
+        
+        // Corrección por ángulo: La eficiencia se reduce si el ángulo es menor a 90 grados.
+        const angleRadians = angleDegrees * (Math.PI / 180);
+        const angleFactor = Math.pow(Math.sin(angleRadians), 2/3);
+
+        const finalCraterDiameterMeters = baseCraterDiameterMeters * angleFactor;
+        
+        // Retorna el radio para Leaflet
+        return finalCraterDiameterMeters / 2;
+    }
+    // --- FIN FÓRMULAS SIMPLIFICADAS ---
 
     function setLoading(isLoading) {
       btn.disabled = isLoading;
@@ -228,7 +270,7 @@
       const est = neo.estimated_diameter?.meters || {};
       const diameterAvg = (est.estimated_diameter_min && est.estimated_diameter_max) 
                           ? (est.estimated_diameter_min + est.estimated_diameter_max) / 2
-                          : null;
+                          : 100; // Default de 100m si no hay datos
       return {
         id: neo.id, 
         name: neo.name,
@@ -241,12 +283,13 @@
     }
 
     /**
-     * Inicializa el mapa Leaflet y dibuja un impacto hipotético.
-     * @param {object} asteroid - Datos del asteroide.
+     * Inicializa el mapa Leaflet, dibuja el impacto y configura los controles.
      */
     function simulateImpact(asteroid) {
       // 1. Limpiar el contenido anterior
       mapPlaceholder.innerHTML = '';
+      
+      const initialDiameter = Math.round(asteroid.diameterAvg);
       
       // 2. Título de la simulación
       const title = document.createElement('h4');
@@ -262,14 +305,40 @@
       const controlsDiv = document.createElement('div');
       controlsDiv.id = 'controls-content';
       
-      const avgDiameter = asteroid.diameterAvg ? `${Math.round(asteroid.diameterAvg).toLocaleString()} metros` : 'Desconocido';
+      // Valores por defecto (ajustados para el control)
+      const defaultVelocity = 20000; // 20 km/s (rango 10-50 km/s)
+      const defaultDensity = DENSITY_ROCK; // 3000 kg/m^3
+      const defaultAngle = 45; // grados
       
       controlsDiv.innerHTML = `
-        <p style="color: var(--accentHover); font-weight: bold;">[Controles de Interacción ⚙️]</p>
-        <p>Ajuste el diámetro del asteroide (actual: ${avgDiameter}) para modificar el radio del impacto simulado. (La simulación es lineal y solo con fines de demostración).</p>
-        <label for="diameter-input">Diámetro (m):</label>
-        <input type="range" id="diameter-input" min="1" max="1000" value="${Math.round(asteroid.diameterAvg) || 100}" style="width: 80%;">
-        <span id="diameter-value">${Math.round(asteroid.diameterAvg) || 100} m</span>
+        <div class="control-group">
+            <label for="diameter-input">Diámetro (m):</label>
+            <input type="range" id="diameter-input" min="1" max="1000" value="${initialDiameter}" step="1">
+            <span id="diameter-value">${initialDiameter} m</span>
+        </div>
+        <div class="control-group">
+            <label for="velocity-input">Velocidad (km/s):</label>
+            <input type="range" id="velocity-input" min="10" max="50" value="${Math.round(defaultVelocity / 1000)}" step="1">
+            <span id="velocity-value">${Math.round(defaultVelocity / 1000)} km/s</span>
+        </div>
+        <div class="control-group">
+            <label for="density-input">Densidad (kg/m³):</label>
+            <select id="density-input">
+                <option value="${DENSITY_ROCK}">Roca (3000)</option>
+                <option value="${DENSITY_IRON}">Hierro (8000)</option>
+                <option value="${DENSITY_WATER}">Hielo/Agua (1000)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="angle-input">Ángulo (°):</label>
+            <input type="range" id="angle-input" min="5" max="90" value="${defaultAngle}" step="1">
+            <span id="angle-value">${defaultAngle}°</span>
+        </div>
+        <div class="results-box">
+            <p style="font-weight: bold; color: var(--accentHover);">Resultados de la Simulación (Simplificada):</p>
+            <p>Energía Liberada: <span id="energy-value">--</span></p>
+            <p>Diámetro del Cráter: <span id="crater-diameter">--</span></p>
+        </div>
       `;
       mapPlaceholder.appendChild(controlsDiv);
       
@@ -280,7 +349,7 @@
       }
 
       // 6. Inicializar el mapa Leaflet
-      const latitude = 19.4326; // Ciudad de México (ejemplo)
+      const latitude = 19.4326; // Ciudad de México (ejemplo de impacto)
       const longitude = -99.1332;
       const initialZoom = 7;
       
@@ -290,49 +359,70 @@
           attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(impactMap);
       
-      // Función para dibujar el impacto
+      // Función para dibujar el impacto y mostrar resultados
       let impactCircle = null;
 
-      function drawImpact(diameterMeters) {
+      function updateSimulation() {
+        // Leer valores de los controles
+        const diameterMeters = parseFloat(document.getElementById('diameter-input').value);
+        const velocityKms = parseFloat(document.getElementById('velocity-input').value);
+        const densityKgPerCubicMeter = parseFloat(document.getElementById('density-input').value);
+        const angleDegrees = parseFloat(document.getElementById('angle-input').value);
+
+        // Convertir unidades
+        const velocityMps = velocityKms * 1000;
+
+        // 1. Ejecutar Cálculos
+        const { energyMegatons } = calculateKineticEnergy(diameterMeters, densityKgPerCubicMeter, velocityMps);
+        const craterRadiusMeters = calculateCraterRadius(energyMegatons, angleDegrees);
+        const craterDiameterMeters = craterRadiusMeters * 2;
+
+        // 2. Actualizar Mapa
         if (impactCircle) {
             impactMap.removeLayer(impactCircle);
         }
 
-        // FÓRMULA HIPOTÉTICA: 10 km de radio de impacto por cada 1 metro de diámetro.
-        const radiusMultiplier = 10000;
-        const impactRadiusMeters = diameterMeters * radiusMultiplier; 
-        const radiusKm = (impactRadiusMeters / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 });
-
+        const energyMtFormatted = energyMegatons.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        const craterDiameterKm = (craterDiameterMeters / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 });
+        
         impactCircle = L.circle([latitude, longitude], {
             color: 'red',
             fillColor: '#f03',
             fillOpacity: 0.5,
-            radius: impactRadiusMeters
+            radius: craterRadiusMeters // ¡Leaflet usa radio en metros!
         }).addTo(impactMap).bindPopup(`
             <b>Impacto de ${asteroid.name}</b><br>
-            Diámetro del Asteroide: ${diameterMeters.toLocaleString()} m<br>
-            Radio de Choque Simulado: ${radiusKm} km
+            Diámetro del Cráter: ${craterDiameterKm} km<br>
+            Energía: ${energyMtFormatted} Mt
         `).openPopup();
         
-        // Ajustar el zoom para ver el círculo completo
-        impactMap.fitBounds(impactCircle.getBounds());
+        // Ajustar el zoom para ver el círculo completo, si el radio es mayor a 1m
+        if (craterRadiusMeters > 1) {
+             impactMap.fitBounds(impactCircle.getBounds(), { padding: [50, 50] });
+        } else {
+             impactMap.setView([latitude, longitude], 15);
+        }
+
+        // 3. Actualizar Resultados
+        document.getElementById('energy-value').textContent = `${energyMtFormatted} Mt (TNT)`;
+        document.getElementById('crater-diameter').textContent = `${craterDiameterKm} km`;
+        
+        // Actualizar los textos de los sliders
+        document.getElementById('diameter-value').textContent = `${diameterMeters} m`;
+        document.getElementById('velocity-value').textContent = `${velocityKms} km/s`;
+        document.getElementById('angle-value').textContent = `${angleDegrees}°`;
       }
       
-      // Dibujar el impacto inicial
-      const initialDiameter = Math.round(asteroid.diameterAvg) || 100;
-      drawImpact(initialDiameter);
+      // 7. Configurar eventos de interacción
+      document.getElementById('diameter-input').addEventListener('input', updateSimulation);
+      document.getElementById('velocity-input').addEventListener('input', updateSimulation);
+      document.getElementById('density-input').addEventListener('change', updateSimulation); // Usamos 'change' para select
+      document.getElementById('angle-input').addEventListener('input', updateSimulation);
 
-      // 7. Configurar el evento de interacción (Slider)
-      const diameterInput = document.getElementById('diameter-input');
-      const diameterValueSpan = document.getElementById('diameter-value');
-
-      diameterInput.addEventListener('input', (e) => {
-        const newDiameter = parseInt(e.target.value);
-        diameterValueSpan.textContent = `${newDiameter} m`;
-        drawImpact(newDiameter); // Redibujar el impacto al cambiar el valor
-      });
+      // 8. Iniciar la simulación
+      updateSimulation();
       
-      // 8. Desplazarse al área de simulación
+      // 9. Desplazarse al área de simulación
       document.getElementById('simulation-area').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -355,8 +445,7 @@
         }
 
         const limit = 20; 
-        asteroidList = list.slice(0, limit).map(mapNeoToItem);
-        asteroidList.forEach(renderItem); 
+        list.slice(0, limit).map(mapNeoToItem).forEach(renderItem); 
 
         showMessage(`Mostrando ${Math.min(limit, list.length)} de ${list.length} objetos.`);
       } catch (err) {

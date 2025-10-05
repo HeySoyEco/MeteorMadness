@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulación de Meteorito</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body, html {
+      height: 100%;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background-color: #111;
+      color: #fff;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    canvas#simulacion {
+      flex: 1;
+      background-color: #000;
+    }
+
+    .menu {
+      width: 280px;
+      padding: 25px;
+      background-color: #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      border-left: 2px solid #444;
+    }
+
+    .menu h2 {
+      font-size: 1.4em;
+      margin-bottom: 10px;
+      color: #00bfff;
+    }
+
+    .menu label {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .menu select,
+    .menu input[type="range"],
+    .menu button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      background-color: #333;
+      color: #fff;
+      transition: background-color 0.3s ease;
+    }
+
+    .menu button:hover {
+      background-color: #00bfff;
+      cursor: pointer;
+    }
+
+    .menu button:focus {
+      outline: 2px solid #00bfff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <canvas id="simulacion" width="800" height="600"></canvas>
+
+    <div class="menu">
+      <h2>Opciones</h2>
+
+      <label for="tamaño">Tamaño del meteorito:</label>
+      <select id="tamaño">
+        <option value="pequeño">Pequeño</option>
+        <option value="mediano">Mediano</option>
+        <option value="grande">Grande</option>
+      </select>
+
+      <label for="velocidad">Velocidad:</label>
+      <input type="range" id="velocidad" min="1" max="10" value="5">
+
+      <button id="iniciar">🚀 Iniciar simulación</button>
+      <button id="reset">🔄 Reiniciar</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('simulacion');
+    const ctx = canvas.getContext('2d');
+
+    let meteorito = null;
+    let velocidad = 5;
+    let animacion;
+
+    function crearMeteorito() {
+      const tamaño = document.getElementById('tamaño').value;
+      let radio;
+
+      switch (tamaño) {
+        case 'pequeño': radio = 10; break;
+        case 'mediano': radio = 20; break;
+        case 'grande': radio = 30; break;
+      }
+
+      velocidad = parseInt(document.getElementById('velocidad').value);
+
+      meteorito = {
+        x: canvas.width / 2,
+        y: 0,
+        radio: radio,
+        color: '#ff6600'
+      };
+    }
+
+    function dibujarMeteorito() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (meteorito) {
+        ctx.beginPath();
+        ctx.arc(meteorito.x, meteorito.y, meteorito.radio, 0, Math.PI * 2);
+        ctx.fillStyle = meteorito.color;
+        ctx.fill();
+
+        meteorito.y += velocidad;
+
+        if (meteorito.y - meteorito.radio < canvas.height) {
+          animacion = requestAnimationFrame(dibujarMeteorito);
+        }
+      }
+    }
+
+    document.getElementById('iniciar').addEventListener('click', () => {
+      crearMeteorito();
+      dibujarMeteorito();
+    });
+
+    document.getElementById('reset').addEventListener('click', () => {
+      cancelAnimationFrame(animacion);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      meteorito = null;
+    });
+  </script>
+</body>
+</html>

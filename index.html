@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Meteor Madness</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
     :root {
       --bg: radial-gradient(circle at top, #0b1b3a, #000);
@@ -20,7 +23,7 @@
     header {
       position: relative;
       height: 100px;
-      background-color: linear-gradient(to right, white 0%, #665e5e 100%);
+      background-color: rgba(255, 255, 255, 0.1);
     }
     .logo-container {
       position: absolute;
@@ -30,11 +33,11 @@
       align-items: center;
       gap: 10px;
     }
-    .logo { width: 100px; height: 50px; object-fit: contain; }
+    .logo { width: 50px; height: 50px; object-fit: contain; }
     .title { font-size: 1.5rem; margin: 0; }
     main { padding: 2rem; text-align: center; }
     /* Estilos del botón principal de carga y el botón/tarjeta de asteroide */
-     .card-button {
+    .card-button {
       background-color: var(--accent);
       border: none;
       padding: 10px 20px;
@@ -62,19 +65,11 @@
       background: var(--glass);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 10px;
-      padding: 0; /* Quitamos padding del card para que lo tenga el botón interno */
+      padding: 0;
       margin-bottom: .8rem;
-      overflow: hidden; /* Oculta el overflow del border-radius */
+      overflow: hidden;
     }
-    .card-button {
-      padding: 1rem 1.2rem;
-      background: none; /* Quitamos el background del accent para usar el del card */
-      color: white;
-      /* Aplicar hover solo al contenido interno de la tarjeta */
-    }
-    .card-button:hover {
-      background-color: rgba(255, 255, 255, 0.15); /* Un color para el hover de la tarjeta */
-    }
+
     /* Estilos de la cabecera */
     .row {
       display: grid;
@@ -85,7 +80,7 @@
     .row.header {
       font-weight: bold;
       border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-      padding: .5rem 1.2rem; /* Agregamos padding para que coincida con el contenido */
+      padding: .5rem 1.2rem;
       margin-bottom: .6rem;
     }
     /* Estilos adicionales */
@@ -110,7 +105,6 @@
       text-align: left;
     }
     #map-placeholder {
-      min-height: 300px;
       background: var(--glass);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 10px;
@@ -123,12 +117,22 @@
       margin-top: 1rem;
     }
     #map-placeholder h4 { margin-top: 0; color: white; }
-    #map-content {
-      background: #0a1a2a;
+    
+    /* Estilo del contenedor del mapa Leaflet */
+    #impact-map {
+      min-height: 400px; /* Altura necesaria para que Leaflet funcione */
+      margin-top: 15px;
       border-radius: 8px;
-      padding: 20px;
       width: 100%;
-      text-align: left;
+      z-index: 0; /* Asegura que los controles del mapa sean visibles */
+    }
+
+    #controls-content {
+      margin-top: 15px;
+      padding: 15px;
+      border: 1px dashed #ffffff33;
+      border-radius: 8px;
+      width: 100%;
     }
   </style>
 </head>
@@ -160,19 +164,15 @@
   </footer>
 
   <script>
-    // 1) CONFIGURA AQUÍ TU API
-    // Se usa una key de demostración que puede expirar o tener límites de uso.
     const API_URL = "https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=Fh37Ayni8aK9FXjwlpPm06ym4UPLeMOcwaMAjZkA";
 
-    // 2) ELEMENTOS DEL DOM
     const btn = document.getElementById('load-btn');
     const results = document.getElementById('results');
-    const mapPlaceholder = document.getElementById('map-placeholder'); // Nuevo elemento para la simulación
+    const mapPlaceholder = document.getElementById('map-placeholder');
 
-    // Almacena la lista completa de objetos (opcional, pero útil si se requiere el objeto completo)
     let asteroidList = [];
+    let impactMap = null; // Instancia global de Leaflet Map
 
-    // 3) UTILIDADES DE RENDER
     function setLoading(isLoading) {
       btn.disabled = isLoading;
       btn.textContent = isLoading ? "Cargando asteroides... 🚀" : "Mira los asteroides";
@@ -192,17 +192,12 @@
       results.appendChild(header);
     }
 
-    /**
-     * Convierte los datos mapeados en un botón de tarjeta interactivo.
-     * @param {object} itemData - Datos del asteroide transformados.
-     */
     function renderItem(itemData) {
       const card = document.createElement('div');
       card.className = 'card';
       
       const button = document.createElement('button');
       button.className = 'card-button';
-      // Asigna el evento 'click' para la simulación
       button.onclick = () => simulateImpact(itemData);
 
       button.innerHTML = `
@@ -229,24 +224,26 @@
       results.appendChild(card);
     }
 
-    // 4) MAPEO/TRANSFORMACIÓN DEL JSON
     function mapNeoToItem(neo) {
       const est = neo.estimated_diameter?.meters || {};
       const diameterAvg = (est.estimated_diameter_min && est.estimated_diameter_max) 
-                          ? Math.round((est.estimated_diameter_min + est.estimated_diameter_max) / 2)
+                          ? (est.estimated_diameter_min + est.estimated_diameter_max) / 2
                           : null;
       return {
         id: neo.id, 
         name: neo.name,
         diameterMin: est.estimated_diameter_min ? Math.round(est.estimated_diameter_min) : null,
         diameterMax: est.estimated_diameter_max ? Math.round(est.estimated_diameter_max) : null,
-        diameterAvg: diameterAvg, // Promedio para usar en la simulación
+        diameterAvg: diameterAvg,
         magH: neo.absolute_magnitude_h,
         hazardous: Boolean(neo.is_potentially_hazardous_asteroid),
       };
     }
 
-    // 5) FUNCIÓN DE SIMULACIÓN Y MAPA (Placeholder para la interactividad)
+    /**
+     * Inicializa el mapa Leaflet y dibuja un impacto hipotético.
+     * @param {object} asteroid - Datos del asteroide.
+     */
     function simulateImpact(asteroid) {
       // 1. Limpiar el contenido anterior
       mapPlaceholder.innerHTML = '';
@@ -256,41 +253,89 @@
       title.textContent = `Simulación de Impacto para: ${asteroid.name}`;
       mapPlaceholder.appendChild(title);
       
-      // 3. Placeholder para el Mapa Interactivo y Controles
-      const mapContent = document.createElement('div');
-      mapContent.id = 'map-content';
-      
-      const avgDiameter = asteroid.diameterAvg ? `${asteroid.diameterAvg.toLocaleString()} metros` : 'Desconocido';
+      // 3. Crear el contenedor del mapa
+      const mapDiv = document.createElement('div');
+      mapDiv.id = 'impact-map';
+      mapPlaceholder.appendChild(mapDiv);
 
-      mapContent.innerHTML = `
-        <p style="color: #6699ff; font-weight: bold;">[Espacio para el Mapa Interactivo 🗺️]</p>
-        <p>Aquí se integraría una librería como **Leaflet** o **Google Maps** para:
-        <ul>
-            <li>Visualizar un punto de impacto simulado.</li>
-            <li>Dibujar los radios de las zonas de efecto (onda de choque, terremoto, etc.).</li>
-        </ul>
-        </p>
-        <p>Datos Clave para la Simulación: <strong>Diámetro Promedio: ${avgDiameter}</strong>. Este dato influye directamente en la magnitud de los efectos.</p>
-        
-        <p>---</p>
-        
-        <p style="color: var(--accentHover); font-weight: bold;">[Controles de Interacción ⚙️]</p>
-        <p>Aquí irían los controles para que el usuario pueda interactuar con la simulación:</p>
-        <ul>
-            <li>**Velocidad de Impacto:** Slider para ajustar la velocidad.</li>
-            <li>**Ángulo de Entrada:** Campo para definir el ángulo.</li>
-            <li>**Tipo de Terreno:** Dropdown (Tierra, Agua, Roca) para calcular efectos.</li>
-            <li>**Botón Recalcular:** Para actualizar el mapa y los efectos al cambiar los parámetros.</li>
-        </ul>
-        <p>Actualmente, se requiere una herramienta externa (como la <a href="https://impact.ese.ic.ac.uk/ImpactEarth/ImpactEffects/" target="_blank" style="color: var(--accentHover);">Calculadora Impact Earth</a>) para la lógica de simulación avanzada.</p>
-      `;
-      mapPlaceholder.appendChild(mapContent);
+      // 4. Crear el contenedor de Controles
+      const controlsDiv = document.createElement('div');
+      controlsDiv.id = 'controls-content';
       
-      // Desplazarse al área de simulación
+      const avgDiameter = asteroid.diameterAvg ? `${Math.round(asteroid.diameterAvg).toLocaleString()} metros` : 'Desconocido';
+      
+      controlsDiv.innerHTML = `
+        <p style="color: var(--accentHover); font-weight: bold;">[Controles de Interacción ⚙️]</p>
+        <p>Ajuste el diámetro del asteroide (actual: ${avgDiameter}) para modificar el radio del impacto simulado. (La simulación es lineal y solo con fines de demostración).</p>
+        <label for="diameter-input">Diámetro (m):</label>
+        <input type="range" id="diameter-input" min="1" max="1000" value="${Math.round(asteroid.diameterAvg) || 100}" style="width: 80%;">
+        <span id="diameter-value">${Math.round(asteroid.diameterAvg) || 100} m</span>
+      `;
+      mapPlaceholder.appendChild(controlsDiv);
+      
+      // 5. Destruir el mapa existente si lo hay
+      if (impactMap) {
+          impactMap.remove();
+          impactMap = null;
+      }
+
+      // 6. Inicializar el mapa Leaflet
+      const latitude = 19.4326; // Ciudad de México (ejemplo)
+      const longitude = -99.1332;
+      const initialZoom = 7;
+      
+      impactMap = L.map('impact-map').setView([latitude, longitude], initialZoom);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(impactMap);
+      
+      // Función para dibujar el impacto
+      let impactCircle = null;
+
+      function drawImpact(diameterMeters) {
+        if (impactCircle) {
+            impactMap.removeLayer(impactCircle);
+        }
+
+        // FÓRMULA HIPOTÉTICA: 10 km de radio de impacto por cada 1 metro de diámetro.
+        const radiusMultiplier = 10000;
+        const impactRadiusMeters = diameterMeters * radiusMultiplier; 
+        const radiusKm = (impactRadiusMeters / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+        impactCircle = L.circle([latitude, longitude], {
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.5,
+            radius: impactRadiusMeters
+        }).addTo(impactMap).bindPopup(`
+            <b>Impacto de ${asteroid.name}</b><br>
+            Diámetro del Asteroide: ${diameterMeters.toLocaleString()} m<br>
+            Radio de Choque Simulado: ${radiusKm} km
+        `).openPopup();
+        
+        // Ajustar el zoom para ver el círculo completo
+        impactMap.fitBounds(impactCircle.getBounds());
+      }
+      
+      // Dibujar el impacto inicial
+      const initialDiameter = Math.round(asteroid.diameterAvg) || 100;
+      drawImpact(initialDiameter);
+
+      // 7. Configurar el evento de interacción (Slider)
+      const diameterInput = document.getElementById('diameter-input');
+      const diameterValueSpan = document.getElementById('diameter-value');
+
+      diameterInput.addEventListener('input', (e) => {
+        const newDiameter = parseInt(e.target.value);
+        diameterValueSpan.textContent = `${newDiameter} m`;
+        drawImpact(newDiameter); // Redibujar el impacto al cambiar el valor
+      });
+      
+      // 8. Desplazarse al área de simulación
       document.getElementById('simulation-area').scrollIntoView({ behavior: 'smooth' });
     }
 
-    // 6) FETCH + RENDER
     async function loadData() {
       results.innerHTML = '';
       mapPlaceholder.innerHTML = 'Selecciona un asteroide de la lista para ver la simulación de impacto.';
@@ -303,16 +348,14 @@
         }
         const data = await resp.json();
 
-        // La NASA devuelve { near_earth_objects: [...] }
         const list = Array.isArray(data.near_earth_objects) ? data.near_earth_objects : [];
         if (list.length === 0) {
           showMessage('No se encontraron objetos cercanos a la Tierra.');
           return;
         }
 
-        // Muestra los primeros 20
         const limit = 20; 
-        asteroidList = list.slice(0, limit).map(mapNeoToItem); // Almacena y mapea
+        asteroidList = list.slice(0, limit).map(mapNeoToItem);
         asteroidList.forEach(renderItem); 
 
         showMessage(`Mostrando ${Math.min(limit, list.length)} de ${list.length} objetos.`);
@@ -324,7 +367,6 @@
       }
     }
 
-    // 7) EVENTO DEL BOTÓN
     btn.addEventListener('click', loadData);
   </script>
 </body>

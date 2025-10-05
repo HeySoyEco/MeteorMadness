@@ -123,22 +123,36 @@
     }
 
     #controls-content {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      /* Estilo modificado para una sola columna de controles */
+      display: flex; 
+      flex-wrap: wrap; 
       gap: 20px;
       margin-top: 15px;
       padding: 15px;
       border: 1px dashed #ffffff33;
       border-radius: 8px;
     }
-    .control-group { margin-bottom: 10px; }
+    .control-group { 
+      margin-bottom: 10px; 
+      /* Hace que cada grupo ocupe su propio espacio */
+      flex: 1 1 45%; 
+      min-width: 200px;
+    }
     .control-group label { display: block; margin-bottom: 5px; font-weight: bold; color: white; font-size: 0.9em; }
     .control-group input[type="range"] { width: 80%; }
-    .results-box { grid-column: 1 / -1; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    .results-box { flex: 1 1 100%; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
     .results-box p { margin: 5px 0; font-size: 1.1em; color: var(--accentHover); }
     .results-box span { color: white; font-weight: normal; }
-    .location-info { grid-column: 1 / -1; margin-bottom: 15px; padding: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; }
+    .location-info { flex: 1 1 100%; margin-bottom: 15px; padding: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; }
     .location-info p { margin: 0; font-size: 0.9em; color: #ccc; }
+    /* Nuevo estilo para el indicador de diámetro fijo */
+    .fixed-diameter-info { 
+      flex: 1 1 100%;
+      margin-bottom: 10px;
+      font-size: 1.1em;
+      color: white;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -183,8 +197,8 @@
 
     let impactMap = null; 
     let impactMarker = null; 
-    let impactLat = 19.4326; // Coordenada inicial de Latitud (Ciudad de México)
-    let impactLng = -99.1332; // Coordenada inicial de Longitud
+    let impactLat = 19.4326; 
+    let impactLng = -99.1332; 
     let currentAsteroid = null; 
 
     // --- FÓRMULAS SIMPLIFICADAS DE CÁLCULO DE IMPACTO ---
@@ -319,13 +333,16 @@
       const defaultVelocity = 20000; 
       const defaultDensity = DENSITY_ROCK; 
       const defaultAngle = 45;
-      
+
+      // Indicador de Diámetro Fijo
       controlsDiv.innerHTML = `
-        <div class="control-group">
-            <label for="diameter-input">Diámetro (m):</label>
-            <input type="range" id="diameter-input" min="1" max="50000" value="${initialDiameter}" step="1">
-            <span id="diameter-value">${initialDiameter} m</span>
+        <div class="fixed-diameter-info">
+          Diámetro Fijo (Asteroide): <span id="diameter-value">${initialDiameter} m</span>
         </div>
+      `;
+      
+      // Añadir controles restantes (Velocidad, Densidad, Ángulo)
+      controlsDiv.innerHTML += `
         <div class="control-group">
             <label for="velocity-input">Velocidad (km/s):</label>
             <input type="range" id="velocity-input" min="10" max="50" value="${Math.round(defaultVelocity / 1000)}" step="1">
@@ -370,8 +387,7 @@
       // AGREGAR LISTENER DE CLIC AL MAPA
       impactMap.on('click', onMapClick);
       
-      // 7. Configurar eventos de interacción de los parámetros
-      document.getElementById('diameter-input').addEventListener('input', updateSimulation);
+      // 7. Configurar eventos de interacción de los parámetros (solo Velocidad, Densidad, Ángulo)
       document.getElementById('velocity-input').addEventListener('input', updateSimulation);
       document.getElementById('density-input').addEventListener('change', updateSimulation);
       document.getElementById('angle-input').addEventListener('input', updateSimulation);
@@ -387,8 +403,10 @@
     let impactCircle = null;
 
     function updateSimulation() {
-        // Leer valores de los controles
-        const diameterMeters = parseFloat(document.getElementById('diameter-input').value);
+        // El diámetro se toma del asteroide actual, que se guarda en currentAsteroid.diameterAvg
+        const diameterMeters = Math.round(currentAsteroid.diameterAvg); 
+        
+        // Leer valores de los controles interactivos
         const velocityKms = parseFloat(document.getElementById('velocity-input').value);
         const densityKgPerCubicMeter = parseFloat(document.getElementById('density-input').value);
         const angleDegrees = parseFloat(document.getElementById('angle-input').value);
@@ -440,7 +458,7 @@
         // 3. Actualizar Resultados y Controles
         document.getElementById('energy-value').textContent = `${energyMtFormatted} Mt (TNT)`;
         document.getElementById('crater-diameter').textContent = `${craterDiameterKm} km`;
-        document.getElementById('diameter-value').textContent = `${diameterMeters} m`;
+        // El valor del diámetro solo se actualiza si cambias de asteroide (se define en simulateImpact)
         document.getElementById('velocity-value').textContent = `${velocityKms} km/s`;
         document.getElementById('angle-value').textContent = `${angleDegrees}°`;
         document.getElementById('current-latlng').textContent = `Lat: ${impactLat.toFixed(4)}, Lng: ${impactLng.toFixed(4)}`;
